@@ -1,0 +1,56 @@
+instalaçao
+npx create-vite .
+
+npm install   //instalar dependencia
+npm i react-router-dom   // rotas
+npm i axios react-router-dom  //rotas e api
+npm i react-router-dom react-toastify
+
+
+npm i axios react-router-dom react-toastify
+////////////////////////////////////////////
+npm i axios @types/axios
+npm i  react-router-dom react-toastify
+//////////////////////////////////////////////
+
+
+
+npm run dev
+
+ts
+
+npm install -g typescript
+
+//para ver a versao
+tsc -v 
+
+ tsc .\src\hello.ts --outDir dist
+ ou
+ tsc --watch
+
+
+
+//////////////////// i18n ///////////////
+npm install i18next react-i18next i18next-http-backend i18next-browser-languagedetector
+//////md5
+npm install crypto-js
+npm install i18next react-i18next i18next-http-backend i18next-browser-languagedetector
+npm i axios react-router-dom react-toastify
+////////////////////////////////////////////
+npm i axios @types/axios
+
+
+
+
+md5 react ionic
+npm install crypto-js
+
+
+
+
+ionic
+npm install react@17 react-dom@17
+npm install react@latest react-dom@latest
+npm install crypto-js
+npm install i18next react-i18next i18next-http-backend i18next-browser-languagedetector
+npm i axios

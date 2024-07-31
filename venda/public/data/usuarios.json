@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Thalyson Lima",
+      "username": "Thalyson",
+      "email": "thalyson@gmail.com"
+    },
+    {
+      "id": 2,
+      "name": "Nivia Marques",
+      "username": "Nivia",
+      "email": "nivia@gmail.com"
+    }
+  ]
+}

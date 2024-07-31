@@ -1,0 +1,1 @@
+export type CounterAction = { type: "mais" } | { type: "menos" }

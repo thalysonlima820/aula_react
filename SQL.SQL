@@ -1,0 +1,437 @@
+WITH CTE AS (
+    SELECT
+        E.CODFILIAL AS CODIGO_FILIAL,
+        P.CODPROD AS COD_PRODUTO,
+        P.DESCRICAO AS PRODUTO,
+        MAR.CODMARCA,
+        MAR.MARCA,
+        NC.CODNCM,
+        NC.DESCRICAO,
+        P.QTUNITCX,
+        B.MARGEM AS MARGEM_IDEAL,
+        F.FORNECEDOR AS FORNECEDOR_203,
+        E.CUSTOULTENT AS CUSTO,
+        B.PVENDA AS VL_VENDA,
+        F.PRAZOENTREGA AS PRAZO_DE_ENTREGA,
+        E.QTPEDIDA AS PED_ABERTO,
+        CASE
+            WHEN E.QTPEDIDA > 0 THEN PDO.NUMPED
+            ELSE NULL
+        END AS NUMERO_PEDIDO,
+        CASE
+            WHEN E.QTPEDIDA > 0 THEN PDO.DTFATUR
+            ELSE NULL
+        END AS DATA_FATURAMENTO_ROT_220,
+        PDO.CODFORNEC AS COD_FORNECEDOR_DO_PEDIDO,
+        D.DESCRICAO AS DEPARTAMENTO,
+        CS.DESCRICAO AS SECAO,
+        E.ESTMIN AS ESTOQUE_MINIMO,
+        E.ESTMAX AS ESTOQUE_MAXIMO,
+        E.QTGIRODIA AS GIRO_DIA,
+        P.TEMREPOS AS TEMPO_REPOSICAO,
+        E.QTESTGER AS QT_ESTOQUE,
+        I.QTPEDIDA AS QT_ULT_PEDIDO,
+        ROW_NUMBER() OVER (
+            PARTITION BY E.CODFILIAL,
+            P.CODPROD
+            ORDER BY
+                PDO.DTFATUR DESC
+        ) AS rn,
+        E.QTGIRODIA,
+        F.PRAZOENTREGA,
+        P.TEMREPOS,
+        E.QTESTGER,
+        E.QTRESERV,
+        E.QTINDENIZ,
+        E.ESTMIN,
+        E.ESTMAX,
+        GREATEST(E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS)) AS ESTOQUE_IDEAL,
+        E.QTPEDIDA AS QTD_PENDENDET,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) - (
+            (E.QTESTGER - E.QTRESERV - E.QTINDENIZ) + COALESCE(E.QTPEDIDA, 0)
+        ) AS SUGESTAO_COMPRA,
+        (
+            SELECT
+                SUM(QTESTGER) AS ESTOQUE_TOTAL
+            FROM
+                PCEST
+            WHERE
+                CODFILIAL IN (1, 2, 3, 4, 5)
+                AND PCEST.CODPROD = P.CODPROD
+        ) AS ESTOQUE_MULTI_FILIAL
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON P.CODFORNEC = F.CODFORNEC
+        JOIN PCITEM I ON P.CODPROD = I.CODPROD
+        JOIN PCPEDIDO PDO ON I.NUMPED = PDO.NUMPED
+        AND PDO.CODFILIAL = E.CODFILIAL
+        JOIN PCEMBALAGEM B ON P.CODPROD = B.CODPROD
+        AND E.CODFILIAL = B.CODFILIAL
+        JOIN PCDEPTO D ON P.CODEPTO = D.CODEPTO
+        JOIN PCNCM NC ON P.CODNCMEX = NC.CODNCMEX
+        JOIN PCMARCA MAR ON P.CODMARCA = MAR.CODMARCA
+        JOIN PCSECAO CS ON P.CODSEC = CS.CODSEC
+    WHERE
+        PDO.DTFATUR > TO_DATE('01-JAN-2024', 'DD-MM-YYYY')
+        AND D.CODEPTO IN (:CODDEPTO)
+        AND E.CODFILIAL IN (:CODFILIAL)
+        AND P.CODPROD IN (:CODPROD)
+),
+DATA_PREVISTA_ENTREGA AS (
+    SELECT
+        E.CODPROD,
+        E.CODFILIAL,
+        F.FORNECEDOR AS FORNECEDOR_ENTRADA,
+        CASE
+            WHEN E.QTPEDIDA > 0 THEN PDO.DTFATUR + F.PRAZOENTREGA
+            ELSE NULL
+        END AS DATA_PREVISTA_ENTREGA,
+        ROW_NUMBER() OVER (
+            PARTITION BY E.CODFILIAL,
+            E.CODPROD
+            ORDER BY
+                PDO.DTFATUR DESC
+        ) AS rn
+    FROM
+        PCEST E
+        JOIN PCITEM I ON E.CODPROD = I.CODPROD
+        JOIN PCPEDIDO PDO ON I.NUMPED = PDO.NUMPED
+        AND PDO.CODFILIAL = E.CODFILIAL
+        JOIN PCFORNEC F ON PDO.CODFORNEC = F.CODFORNEC
+    WHERE
+        PDO.DTFATUR > TO_DATE('01-JAN-2024', 'DD-MM-YYYY')
+),
+ULTIMA_ENTRADA AS (
+    SELECT
+        M.CODOPER,
+        M.NUMNOTA,
+        M.NUMTRANSENT,
+        M.VALORULTENT AS VALOR_ULTIMA_ENTRADA,
+        M.CODFILIAL AS CODIGO_FILIAL,
+        M.CODPROD AS COD_PRODUTO,
+        M.DTMOV AS DATA_ULTIMA_ENTRADA,
+        M.QT AS QT_TRANSFERIDA,
+        ROW_NUMBER() OVER (
+            PARTITION BY M.CODFILIAL,
+            M.CODPROD
+            ORDER BY
+                M.DTMOV DESC
+        ) AS rn
+    FROM
+        PCMOV M
+    WHERE
+        M.DTMOV > TO_DATE('01-JAN-2023', 'DD-MM-YYYY')
+        AND M.CODOPER IN ('E')
+),
+MARGEM_DIARIA AS(
+    SELECT
+        CODPROD,
+        CODFILIAL,
+        PCUSTO *(1 - PERDESCUSTO) + PVENDA * PERCIMP VLCMV,
+        ROUND(
+            DECODE(
+                PVENDA,
+                0,
+                -100,
+                100 *(
+                    PVENDA -(PCUSTO *(1 - PERDESCUSTO) + PVENDA * PERCIMP)
+                ) / PVENDA
+            ),
+            2
+        ) AS MARGEM_DIARIA,
+        ROW_NUMBER() OVER (
+            PARTITION BY CODFILIAL,
+            CODPROD
+            ORDER BY
+                CODPROD ASC
+        ) AS rn
+    FROM
+        (
+            SELECT
+                NVL(
+                    (
+                        CASE
+                            WHEN PCEMBALAGEM.DTOFERTAINI <= TRUNC(SYSDATE)
+                            AND PCEMBALAGEM.DTOFERTAFIM >= TRUNC(SYSDATE) THEN PCEMBALAGEM.POFERTA
+                            ELSE PCEMBALAGEM.PVENDA
+                        END
+                    ),
+                    0
+                ) PVENDA,
+                NVL(
+                    (
+                        CASE
+                            WHEN PCCONSUM.SUGVENDA = 1 THEN PCEST.CUSTOREAL
+                            WHEN PCCONSUM.SUGVENDA = 2 THEN PCEST.CUSTOFIN
+                            ELSE PCEST.CUSTOULTENT
+                        END
+                    ),
+                    0
+                ) PCUSTO,
+                PCEMBALAGEM.MARGEM,
+                PCTRIBUT.CODICMTAB,
+                PCTRIBUT.PERDESCCUSTO,
+                PCEMBALAGEM.CODAUXILIAR,
+                PCPRODUT.DESCRICAO,
+                PCEMBALAGEM.EMBALAGEM,
+                PCEMBALAGEM.UNIDADE,
+                PCPRODUT.PRECOFIXO,
+                PCPRODUT.PCOMREP1,
+                PCPRODUT.PESOBRUTO,
+                PCEST.CUSTOFIN,
+                PCEST.CUSTOREAL,
+                PCEST.CODFILIAL,
+                PCEST.CODPROD,
+                PCEST.DTULTENT,
+                PCEST.QTULTENT,
+                PCEST.CUSTOULTENT,
+                (
+                    NVL(PCEST.QTESTGER, 0) - NVL(PCEST.QTBLOQUEADA, 0) - NVL(PCEST.QTRESERV, 0)
+                ) QTESTDISP,
+                PCREGIAO.VLFRETEKG,
+                (
+                    NVL(PCCONSUM.TXVENDA, 0) + NVL(PCPRODUT.PCOMREP1, 0) + NVL(PCTRIBUT.CODICMTAB, 0)
+                ) / 100 PERCIMP,
+                NVL(PCTRIBUT.PERDESCCUSTO, 0) / 100 PERDESCUSTO
+            FROM
+                PCTABTRIB,
+                PCPRODUT,
+                PCEMBALAGEM,
+                PCEST,
+                PCTRIBUT,
+                PCCONSUM,
+                PCREGIAO
+            WHERE
+                PCTABTRIB.CODPROD = PCPRODUT.CODPROD
+                AND PCPRODUT.CODPROD = PCEST.CODPROD
+                AND PCPRODUT.CODPROD = PCEMBALAGEM.CODPROD
+                AND PCTABTRIB.CODST = PCTRIBUT.CODST
+                AND PCREGIAO.NUMREGIAO = 1.000000
+                AND PCTABTRIB.UFDESTINO = 'PA'
+                AND PCTABTRIB.CODFILIALNF = PCEMBALAGEM.CODFILIAL
+                AND PCEMBALAGEM.CODFILIAL = PCEST.CODFILIAL
+                AND (
+                    NVL(PCEST.QTESTGER, 0) - NVL(PCEST.QTBLOQUEADA, 0) - NVL(PCEST.QTRESERV, 0) > 0
+                )
+        )
+),
+F1 AS (
+    SELECT
+        E.CODPROD,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) AS B1
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON F.CODFORNEC = P.CODFORNEC
+    WHERE
+        E.CODFILIAL IN (1)
+),
+F2 AS (
+    SELECT
+        E.CODPROD,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) AS B2
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON F.CODFORNEC = P.CODFORNEC
+    WHERE
+        E.CODFILIAL IN (2)
+),
+F3 AS (
+    SELECT
+        E.CODPROD,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) AS B3
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON F.CODFORNEC = P.CODFORNEC
+    WHERE
+        E.CODFILIAL IN (3)
+),
+F4 AS (
+    SELECT
+        E.CODPROD,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) AS B4
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON F.CODFORNEC = P.CODFORNEC
+    WHERE
+        E.CODFILIAL IN (4)
+),
+F5 AS (
+    SELECT
+        E.CODPROD,
+        GREATEST(
+            E.QTGIRODIA * (F.PRAZOENTREGA + P.TEMREPOS),
+            E.ESTMIN
+        ) AS B5
+    FROM
+        PCEST E
+        JOIN PCPRODUT P ON E.CODPROD = P.CODPROD
+        JOIN PCFORNEC F ON F.CODFORNEC = P.CODFORNEC
+    WHERE
+        E.CODFILIAL IN (5)
+),
+MAIS_SAIDAS AS (
+    SELECT
+        CODPROD,
+        ROW_NUMBER() OVER (
+            ORDER BY
+                TotalVendido DESC
+        ) AS RN
+    FROM
+        (
+            SELECT
+                M.CODPROD,
+                SUM(M.QT * M.PUNIT) AS TotalVendido
+            FROM
+                PCMOV M
+                JOIN PCPRODUT P ON M.CODPROD = P.CODPROD
+                JOIN PCEMBALAGEM B ON M.CODPROD = B.CODPROD
+            WHERE
+                M.DTMOV > '01-JAN-2024'
+                AND M.CODOPER IN ('S', 'SB', 'SR', 'SM')
+                AND P.CODEPTO IN (:CODDEPTO)
+                AND M.CODFILIAL IN (:CODFILIAL)
+            GROUP BY
+                M.CODPROD
+        ) A
+    ORDER BY
+        TotalVendido DESC
+),
+TRIBUTACAO_SAIDA AS (
+    SELECT
+        B.UFDESTINO,
+        B.CODFILIALNF,
+        B.CODPROD,
+        T.CODST,
+        T.MENSAGEM,
+        T.CODICMTAB
+    FROM
+        PCTABTRIB B,
+        PCTRIBUT T
+    WHERE
+        B.CODST = T.CODST
+        AND B.UFDESTINO = 'PA'
+)
+SELECT
+    A.CODIGO_FILIAL,
+    A.COD_PRODUTO,
+    A.PRODUTO,
+    A.CODMARCA,
+    A.MARCA,
+    B.VALOR_ULTIMA_ENTRADA,
+    A.CUSTO,
+    A.VL_VENDA,
+    C.MARGEM_DIARIA,
+    A.MARGEM_IDEAL,
+    TS.CODICMTAB,
+    ROUND(
+        (
+            (B.VALOR_ULTIMA_ENTRADA - A.CUSTO) / B.VALOR_ULTIMA_ENTRADA
+        ) * 100,
+        2
+    ) AS CREDITO_ENTRADA,
+    B.DATA_ULTIMA_ENTRADA,
+    B.NUMNOTA AS N_NF_ULT_ENT,
+    B.NUMTRANSENT,
+    A.QT_ULT_PEDIDO,
+    D.FORNECEDOR_ENTRADA,
+    A.COD_FORNECEDOR_DO_PEDIDO,
+    A.DEPARTAMENTO,
+    A.SECAO,
+    A.QTUNITCX,
+    A.FORNECEDOR_203,
+    PPPP.CLASSEVENDA,
+    A.PED_ABERTO,
+    A.NUMERO_PEDIDO,
+    A.DATA_FATURAMENTO_ROT_220,
+    A.PRAZO_DE_ENTREGA,
+    D.DATA_PREVISTA_ENTREGA,
+    A.ESTOQUE_MINIMO,
+    A.ESTOQUE_MAXIMO,
+    A.QT_ESTOQUE,
+    A.QTGIRODIA,
+    A.PRAZOENTREGA,
+    A.TEMREPOS,
+    A.ESTOQUE_IDEAL,
+    A.SUGESTAO_COMPRA,
+    A.QTESTGER,
+    A.QTRESERV,
+    A.QTINDENIZ,
+    A.ESTMIN,
+    A.GIRO_DIA,
+    A.ESTMAX,
+    A.TEMPO_REPOSICAO,
+    A.QTD_PENDENDET,
+    B.QT_TRANSFERIDA,
+    A.ESTOQUE_MULTI_FILIAL,
+    (F1.B1 + F2.B2 + F3.B3 + F4.B4 + F5.B5) AS ESTOQUE_IDEAL_MULTI_FILIAL,
+    (
+        (F1.B1 + F2.B2 + F3.B3 + F4.B4 + F5.B5) - (A.ESTOQUE_MULTI_FILIAL)
+    ) AS QTD_SUGERIDA_MULTI_FILIAL_MENOS_ESTOQUE,
+    A.CODNCM,
+    A.DESCRICAO,
+    B.CODOPER,
+    TS.CODST,
+    TS.MENSAGEM,
+    TS.UFDESTINO,
+    FF.FORALINHA
+FROM
+    CTE A
+    JOIN ULTIMA_ENTRADA B ON A.CODIGO_FILIAL = B.CODIGO_FILIAL
+    AND A.COD_PRODUTO = B.COD_PRODUTO
+    JOIN MARGEM_DIARIA C ON A.CODIGO_FILIAL = C.CODFILIAL
+    AND A.COD_PRODUTO = C.CODPROD
+    JOIN DATA_PREVISTA_ENTREGA D ON A.CODIGO_FILIAL = D.CODFILIAL
+    AND A.COD_PRODUTO = D.CODPROD
+    JOIN F1 ON F1.CODPROD = A.COD_PRODUTO
+    JOIN F2 ON F2.CODPROD = A.COD_PRODUTO
+    JOIN F3 ON F3.CODPROD = A.COD_PRODUTO
+    JOIN F4 ON F4.CODPROD = A.COD_PRODUTO
+    JOIN F5 ON F5.CODPROD = A.COD_PRODUTO
+    JOIN MAIS_SAIDAS MS ON A.COD_PRODUTO = MS.CODPROD
+    JOIN TRIBUTACAO_SAIDA TS ON A.COD_PRODUTO = TS.CODPROD
+    AND A.CODIGO_FILIAL = TS.CODFILIALNF
+    JOIN PCPRODUT PPPP ON A.COD_PRODUTO = PPPP.CODPROD
+    JOIN PCPRODFILIAL FF ON A.COD_PRODUTO = FF.CODPROD
+    AND A.CODIGO_FILIAL = FF.CODFILIAL
+WHERE
+    A.rn = 1
+    AND B.rn = 1
+    AND C.RN = 1
+    AND D.RN = 1
+    AND C.MARGEM_DIARIA > :NUM
+    AND C.MARGEM_DIARIA < :NUM2
+    AND MS.RN <= :QTD
+    AND A.CODMARCA IN (:CODMARCA)
+    AND PPPP.CLASSEVENDA IN (:CURVA)
+    AND B.DATA_ULTIMA_ENTRADA = (:DATAULTIMAENTRADA)
+    AND FF.FORALINHA = (:FORADELINHAOCD)
+    AND (
+        A.QT_ESTOQUE > A.ESTOQUE_MAXIMO
+        OR :FILESTMAX = 'FALSE'
+    )
+    AND (
+        D.DATA_PREVISTA_ENTREGA < SYSDATE
+        OR :FILDTPREVISTA = 'FALSE'
+    )
+
+    ORDER BY B.NUMTRANSENT

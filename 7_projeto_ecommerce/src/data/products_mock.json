@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "name": "Rel\u00f3gio Elegante",
+    "price": 50.99,
+    "image": "https://th.bing.com/th/id/R.ca126521f9514d6fcae057ebd8df79b8?rik=QhfymRPz6NwD0g&pid=ImgRaw&r=0"
+  },
+  {
+    "id": 2,
+    "name": "C\u00e2mera Vintage",
+    "price": 85.5,
+    "image": "https://th.bing.com/th/id/OIP.2C5xk2FL57MlCZGgKb3skgHaFa?rs=1&pid=ImgDetMain"
+  },
+  {
+    "id": 3,
+    "name": "Fones de Ouvido",
+    "price": 35.99,
+    "image": "https://th.bing.com/th/id/R.af5a38d2dd79f7c9d243d706c4609f43?rik=9YndPFilz4ErRg&pid=ImgRaw&r=0"
+  },
+  {
+    "id": 4,
+    "name": "T\u00eanis de Corrida",
+    "price": 120.0,
+    "image": "https://th.bing.com/th/id/OIP.WfBe6lYuHpSyj_W8YHFwGwAAAA?rs=1&pid=ImgDetMain"
+  },
+  {
+    "id": 5,
+    "name": "Smartphone",
+    "price": 299.99,
+    "image": "https://th.bing.com/th/id/R.f621b93c1d6eacc8374a6821316dd232?rik=S1rWPbU%2bLJipQg&pid=ImgRaw&r=0"
+  },
+  {
+    "id": 6,
+    "name": "Livro de Aventura",
+    "price": 19.99,
+    "image": "https://th.bing.com/th/id/R.6f79d1e157f0f42c071925b8d34002a6?rik=CQFLNpQ0PdxiOg&pid=ImgRaw&r=0"
+  }
+]

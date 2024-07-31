@@ -1,0 +1,1 @@
+export type CounterAction = { type: "incremento" } | { type: "decremento" };

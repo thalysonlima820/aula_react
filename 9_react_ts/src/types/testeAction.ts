@@ -1,0 +1,1 @@
+export type testeAction = { type: "mais" } | { type: "menos" }

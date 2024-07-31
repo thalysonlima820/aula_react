@@ -1,0 +1,1 @@
+export const testeNum = { valor: 0 }
