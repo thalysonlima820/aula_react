@@ -30,14 +30,48 @@ tsc -v
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //////////////////// i18n ///////////////
-npm install i18next react-i18next i18next-http-backend i18next-browser-languagedetector
 //////md5
 npm install crypto-js
 npm install i18next react-i18next i18next-http-backend i18next-browser-languagedetector
 npm i axios react-router-dom react-toastify
-////////////////////////////////////////////
 npm i axios @types/axios
+npm install react react-dom zod @hookform/resolvers tailwindcss postcss autoprefixer typescript
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
